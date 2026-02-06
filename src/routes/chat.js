@@ -1,11 +1,40 @@
 const { Readable } = require('stream');
-const { getBackends, getDefaultModel } = require('../router');
+const { getBackendsFiltered, getDefaultModel, readBackendState, writeBackendState } = require('../router');
 const { forward, shouldRetry } = require('../proxy');
+
+function beijingParts(ms) {
+  const dtf = new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const parts = dtf.formatToParts(new Date(ms));
+  const get = (t) => Number(parts.find((p) => p.type === t)?.value);
+  return { year: get('year'), month: get('month'), day: get('day') };
+}
+
+function beijingMidnightTs(parts) {
+  const utc = Date.UTC(parts.year, parts.month - 1, parts.day, 0, 0, 0);
+  return utc - 8 * 60 * 60 * 1000;
+}
+
+function nextBeijingMidnight(baseMs) {
+  const parts = beijingParts(baseMs);
+  const midnight = beijingMidnightTs(parts);
+  return baseMs >= midnight ? midnight + 24 * 60 * 60 * 1000 : midnight;
+}
+
+function addDaysFromNextMidnight(baseMs, days) {
+  return nextBeijingMidnight(baseMs) + (days - 1) * 24 * 60 * 60 * 1000;
+}
+
+function computeBeijingCooldownDay(existingUnblockAt) {
+  const now = Date.now();
+  const existing = existingUnblockAt ? new Date(existingUnblockAt).getTime() : 0;
+  const base = Math.max(now, existing || 0);
+  return new Date(addDaysFromNextMidnight(base, 1)).toISOString();
+}
 
 async function chatRoutes(fastify) {
   fastify.post('/v1/chat/completions', async (req, reply) => {
     const body = req.body || {};
-    const backends = getBackends();
+    const backends = getBackendsFiltered();
     const defaultModelId = getDefaultModel();
     if (!backends.length) {
       return reply.status(503).send({
@@ -50,6 +79,13 @@ async function chatRoutes(fastify) {
         return reply.status(res.status).send(out);
       }
       const text = await res.text();
+      if (res.status === 429) {
+        const key = `${backend.providerId}:${backend.backendModel}`;
+        const state = readBackendState();
+        const existing = state[key]?.unblockAt;
+        state[key] = { unblockAt: computeBeijingCooldownDay(existing) };
+        writeBackendState(state);
+      }
       if (shouldRetry(res.status)) {
         lastStatus = res.status;
         lastHeaders = res.headers;

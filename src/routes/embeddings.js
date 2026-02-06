@@ -1,10 +1,10 @@
-const { getBackends, getDefaultModel } = require('../router');
+const { getBackendsFiltered, getDefaultModel } = require('../router');
 const { forward, shouldRetry } = require('../proxy');
 
 async function embeddingsRoutes(fastify) {
   fastify.post('/v1/embeddings', async (req, reply) => {
     const body = req.body || {};
-    const backends = getBackends();
+    const backends = getBackendsFiltered();
     const defaultModelId = getDefaultModel();
     if (!backends.length) {
       return reply.status(503).send({

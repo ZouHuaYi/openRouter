@@ -48,4 +48,35 @@ function getDefaultModel() {
   return defaultModel;
 }
 
-module.exports = { loadConfig, getBackends, getDefaultModel };
+const statePath = () => path.join(process.cwd(), 'config', 'backend-state.json');
+
+function readBackendState() {
+  const p = statePath();
+  if (!fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    return {};
+  }
+}
+
+function getBackendsFiltered() {
+  const state = readBackendState();
+  const now = Date.now();
+  return backendsList.filter((b) => {
+    const key = `${b.providerId}:${b.backendModel}`;
+    const s = state[key];
+    if (!s || !s.unblockAt) return true;
+    const at = new Date(s.unblockAt).getTime();
+    return Number.isNaN(at) || at <= now;
+  });
+}
+
+function writeBackendState(state) {
+  const p = statePath();
+  const dir = path.dirname(p);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(state, null, 2), 'utf-8');
+}
+
+module.exports = { loadConfig, getBackends, getBackendsFiltered, getDefaultModel, readBackendState, writeBackendState, statePath };

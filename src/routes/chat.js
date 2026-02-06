@@ -24,12 +24,70 @@ function addDaysFromNextMidnight(baseMs, days) {
   return nextBeijingMidnight(baseMs) + (days - 1) * 24 * 60 * 60 * 1000;
 }
 
-function computeBeijingCooldownDay(existingUnblockAt) {
+function nextBeijingWeekMonday(baseMs) {
+  const parts = beijingParts(baseMs);
+  const utc = Date.UTC(parts.year, parts.month - 1, parts.day, 0, 0, 0);
+  const baseMidnight = utc - 8 * 60 * 60 * 1000;
+  const day = new Date(baseMidnight).getUTCDay();
+  const offset = (8 - day) % 7;
+  return baseMidnight + offset * 24 * 60 * 60 * 1000;
+}
+
+function nextBeijingMonthFirst(baseMs) {
+  const parts = beijingParts(baseMs);
+  const utc = Date.UTC(parts.year, parts.month - 1, 1, 0, 0, 0);
+  const monthFirst = utc - 8 * 60 * 60 * 1000;
+  if (baseMs <= monthFirst) return monthFirst;
+  const nextUtc = Date.UTC(parts.year, parts.month, 1, 0, 0, 0);
+  return nextUtc - 8 * 60 * 60 * 1000;
+}
+
+function addMonthsFromNextMidnight(baseMs, months) {
+  const nm = nextBeijingMidnight(baseMs);
+  const p = beijingParts(nm);
+  const utc = Date.UTC(p.year, p.month - 1 + months, p.day, 0, 0, 0);
+  return utc - 8 * 60 * 60 * 1000;
+}
+
+function computeUnblockAt(rule, existingUnblockAt) {
   const now = Date.now();
   const existing = existingUnblockAt ? new Date(existingUnblockAt).getTime() : 0;
   const base = Math.max(now, existing || 0);
+
+  if (!rule || !rule.type) {
+    return new Date(addDaysFromNextMidnight(base, 1)).toISOString();
+  }
+
+  if (rule.type === 'preset') {
+    const raw = typeof rule.value === 'string' ? rule.value.trim() : rule.value;
+    const str = String(raw || '').toLowerCase();
+    if (str === 'day' || str.includes('?')) {
+      return new Date(addDaysFromNextMidnight(base, 1)).toISOString();
+    }
+    if (str === 'week' || str.includes('?')) {
+      return new Date(nextBeijingWeekMonday(base)).toISOString();
+    }
+    if (str === 'month' || str.includes('?')) {
+      return new Date(nextBeijingMonthFirst(base)).toISOString();
+    }
+    return new Date(addDaysFromNextMidnight(base, 1)).toISOString();
+  }
+
+  if (rule.type === 'hours') {
+    const hours = parseInt(rule.value) || 1;
+    const ms = now + hours * 60 * 60 * 1000 + 3 * 60 * 1000;
+    return new Date(ms).toISOString();
+  }
+
+  if (rule.type === 'days') {
+    const days = parseInt(rule.value) || 1;
+    const ms = now + days * 24 * 60 * 60 * 1000;
+    return new Date(ms).toISOString();
+  }
+
   return new Date(addDaysFromNextMidnight(base, 1)).toISOString();
 }
+
 
 async function chatRoutes(fastify) {
   fastify.post('/v1/chat/completions', async (req, reply) => {
@@ -83,7 +141,7 @@ async function chatRoutes(fastify) {
         const key = `${backend.providerId}:${backend.backendModel}`;
         const state = readBackendState();
         const existing = state[key]?.unblockAt;
-        state[key] = { unblockAt: computeBeijingCooldownDay(existing) };
+        state[key] = { unblockAt: computeUnblockAt(backend.cooldownRule, existing) };
         writeBackendState(state);
       }
       if (shouldRetry(res.status)) {

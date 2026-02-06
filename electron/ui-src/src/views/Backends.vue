@@ -47,6 +47,24 @@ function nextBeijingMidnight(baseMs) {
 function addDaysFromNextMidnight(baseMs, days) {
   return nextBeijingMidnight(baseMs) + (days - 1) * 24 * 60 * 60 * 1000
 }
+
+function nextBeijingWeekMonday(baseMs) {
+  const parts = beijingParts(baseMs)
+  const utc = Date.UTC(parts.year, parts.month - 1, parts.day, 0, 0, 0)
+  const baseMidnight = utc - 8 * 60 * 60 * 1000
+  const day = new Date(baseMidnight).getUTCDay()
+  const offset = (8 - day) % 7
+  return baseMidnight + offset * 24 * 60 * 60 * 1000
+}
+
+function nextBeijingMonthFirst(baseMs) {
+  const parts = beijingParts(baseMs)
+  const utc = Date.UTC(parts.year, parts.month - 1, 1, 0, 0, 0)
+  const monthFirst = utc - 8 * 60 * 60 * 1000
+  if (baseMs <= monthFirst) return monthFirst
+  const nextUtc = Date.UTC(parts.year, parts.month, 1, 0, 0, 0)
+  return nextUtc - 8 * 60 * 60 * 1000
+}
 function addMonthsFromNextMidnight(baseMs, months) {
   const nm = nextBeijingMidnight(baseMs)
   const p = beijingParts(nm)
@@ -63,20 +81,15 @@ function computeUnblockAt(type, value, existingUnblockAt) {
   console.log('[computeUnblockAt] 输入参数:', { type, value, existingUnblockAt, base: new Date(base).toISOString() })
   
   if (type === 'preset') {
-    // 预设模式：北京时间0点解封
     let result
     if (value === 'day') {
       result = new Date(addDaysFromNextMidnight(base, 1)).toISOString()
-      console.log('[computeUnblockAt] 计算1天:', result)
     } else if (value === 'week') {
-      result = new Date(addDaysFromNextMidnight(base, 7)).toISOString()
-      console.log('[computeUnblockAt] 计算1周:', result)
+      result = new Date(nextBeijingWeekMonday(base)).toISOString()
     } else if (value === 'month') {
-      result = new Date(addMonthsFromNextMidnight(base, 1)).toISOString()
-      console.log('[computeUnblockAt] 计算1月:', result)
+      result = new Date(nextBeijingMonthFirst(base)).toISOString()
     } else {
       result = new Date(addDaysFromNextMidnight(base, 1)).toISOString()
-      console.log('[computeUnblockAt] 默认1天:', result, 'value是:', value)
     }
     return result
   } else if (type === 'hours') {
@@ -104,8 +117,17 @@ function backendStatus(b) {
 }
 
 function formatUnblock(at) {
+  if (!at) return ''
   const d = new Date(at)
-  return d.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: '2-digit', day: '2-digit' })
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    day: '2-digit'
+  })
 }
 
 const providerIds = () => Object.keys(config.value.providers || {})
@@ -263,13 +285,7 @@ async function triggerCooldown(row) {
   await gateway.setBackendCooldown(row.key, unblockAt)
   await load()
   
-  const displayTime = new Date(unblockAt).toLocaleString('zh-CN', { 
-    timeZone: 'Asia/Shanghai', 
-    month: '2-digit', 
-    day: '2-digit', 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
+  const displayTime = formatUnblock(unblockAt)
   console.log('===== 触发限流结束 =====')
   ElMessage.success(`已触发限流，解封时间：${displayTime}`)
 }
@@ -329,13 +345,13 @@ onMounted(load)
           <span v-else class="text-slate-400 text-xs">未设置</span>
         </template>
       </el-table-column>
-      <el-table-column label="当前状态" width="200" align="center">
+      <el-table-column label="当前状态" width="180" align="center">
         <template #default="scope">
           <el-tag v-if="scope.row.status.status === 'active'" type="success">可用</el-tag>
           <el-tag v-else type="warning">限流至 {{ formatUnblock(scope.row.status.unblockAt) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="快速操作" width="180" align="center">
+      <el-table-column label="快速操作" width="140" align="center">
         <template #default="scope">
           <el-button-group v-if="scope.row.status.status === 'cooldown'">
             <el-button size="small" type="success" @click="clearCooldown(scope.row.key)">

@@ -28,8 +28,8 @@
       "provider": "doubao",
       "model": "doubao-seed-1-6-251015",
       "cooldownRule": {
-        "type": "preset",
-        "value": "day"
+        "type": "hours",
+        "value": 1
       }
     },
     {

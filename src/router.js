@@ -35,6 +35,7 @@ function loadConfig(configPath) {
       apiKey: provider.apiKey,
       chatPath: (b.chatPath != null && String(b.chatPath).trim()) ? normPath(b.chatPath) : provider.chatPath,
       backendModel: b.model || defaultModel,
+      cooldownRule: b.cooldownRule || null,
     };
   }).filter(Boolean);
   return { providers, defaultModel, backends: backendsList };

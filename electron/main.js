@@ -107,7 +107,7 @@ function ensureConfigFiles() {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
-    height: 650,
+    height: 700,
     minWidth: 800,
     minHeight: 500,
     webPreferences: {

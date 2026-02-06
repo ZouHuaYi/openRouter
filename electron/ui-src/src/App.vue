@@ -31,10 +31,11 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-950 text-slate-100">
+  <el-config-provider :teleported="true">
+    <div class="min-h-screen bg-slate-950 text-slate-100">
     <div class="fixed inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
     <div class="fixed inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
-    <div class="relative z-10 w-full p-4">
+    <div class="w-full p-4">
       <el-card shadow="never" class="bg-slate-900 border border-slate-600 w-full">
         <div class="flex items-center gap-3 mb-4">
           <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
@@ -65,7 +66,8 @@ onMounted(() => {
         </el-tabs>
       </el-card>
     </div>
-  </div>
+    </div>
+  </el-config-provider>
 </template>
 
 <style>
@@ -78,5 +80,27 @@ onMounted(() => {
 .el-card__body {
   overflow-x: hidden;
   padding: 16px !important;
+}
+
+/* Ensure popper panels are not clipped inside dialogs */
+.el-overlay-dialog .el-dialog {
+  overflow: visible;
+}
+.el-overlay-dialog .el-dialog__body {
+  overflow: visible;
+}
+.el-popper,
+.el-select__popper,
+.el-picker__popper,
+.el-cascader__dropdown {
+  z-index: 99999 !important;
+}
+
+:root {
+  --el-z-index-popper: 99999;
+}
+
+.el-dialog {
+  --el-dialog-margin-top: 10vh;
 }
 </style>

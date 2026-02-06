@@ -1,0 +1,76 @@
+# OpenAI 兼容聚合网关
+
+对外**只暴露一个模型**：客户端始终用同一个 base URL 和同一个模型名调用。网关按配置的**后端优先级**转发；若某家限流（429）或服务异常（5xx），自动切到下一家重试，**调用方无感知**。
+
+## 使用方式
+
+客户端配置：
+
+- `baseURL = http://localhost:3333/v1`
+- `apiKey = 你的网关 Key`（若设置了 `GATEWAY_API_KEY`）
+- **model**：使用网关暴露的**唯一模型 id**（由配置里的 `defaultModel` 决定，例如 `chat`）
+
+调用方式与直连 OpenAI 一致；无需关心背后是哪家服务商。
+
+### 示例（OpenAI SDK）
+
+```js
+const OpenAI = require('openai');
+const client = new OpenAI({
+  apiKey: process.env.GATEWAY_API_KEY || 'sk-your-gateway-key',
+  baseURL: 'http://localhost:3333/v1',
+});
+const r = await client.chat.completions.create({
+  model: 'chat',   // 固定用配置的 defaultModel，背后自动选/切换服务商
+  messages: [{ role: 'user', content: 'Hello' }],
+});
+```
+
+## 配置
+
+### 环境变量
+
+- `PORT`：服务端口，默认 3333
+- `GATEWAY_API_KEY`：网关鉴权 Key；不设则不对客户端做鉴权
+- 各厂商 Key：在 `config/providers.json` 的 `providers` 里用 `${OPENAI_API_KEY}` 等形式引用
+
+### config/providers.json
+
+- **providers**：各服务商的 `baseUrl`、`apiKey`（可 `${ENV_VAR}` 从环境变量读取）
+- **defaultModel**：对外暴露的**唯一模型 id**，客户端请求时填的 `model`（如 `chat`）
+- **backends**：**按优先级排列**的后端列表；请求时从第一个开始调，若返回 **429（限流）或 5xx** 则自动换下一个重试，直到成功或全部失败
+
+示例：豆包优先，被限流或挂掉时自动用 OpenAI。
+
+```json
+{
+  "providers": {
+    "doubao": { "baseUrl": "https://ark.cn-beijing.volces.com/api/v3", "apiKey": "${DOUBAO_API_KEY}" },
+    "openai": { "baseUrl": "https://api.openai.com", "apiKey": "${OPENAI_API_KEY}" }
+  },
+  "defaultModel": "chat",
+  "backends": [
+    { "provider": "doubao", "model": "doubao-seed-1-8-251228" },
+    { "provider": "openai", "model": "gpt-4o-mini" }
+  ]
+}
+```
+
+## 端点
+
+| 端点 | 说明 |
+|------|------|
+| `POST /v1/chat/completions` | 对话补全（支持 stream），自动按 backends 重试 |
+| `POST /v1/embeddings` | 向量化，自动按 backends 重试 |
+| `GET /v1/models` | 只返回一个模型（即 defaultModel） |
+
+## 运行
+
+```bash
+cp .env.example .env
+# 编辑 .env 填入 GATEWAY_API_KEY 和各厂商 API Key
+npm install
+npm start
+```
+
+开发时可用 `npm run dev`（带 --watch）。

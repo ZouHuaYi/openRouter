@@ -1,6 +1,6 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, toRaw } from 'vue'
 import { useGateway } from '../composables/useGateway'
 
 const gateway = useGateway()
@@ -30,12 +30,12 @@ function openAddEnv() {
 function closeModal() {
   modalOpen.value = false
 }
-function addEnv() {
+async function addEnv() {
   const k = newEnvKey.value?.trim()
   if (!k) return
   envExtra.value.push({ key: k, value: newEnvValue.value?.trim() || '' })
   closeModal()
-  saveEnv()
+  await saveEnv()
 }
 async function removeEnv(index) {
   const row = envExtra.value[index]
@@ -46,7 +46,7 @@ async function removeEnv(index) {
     return
   }
   envExtra.value.splice(index, 1)
-  saveEnv()
+  await saveEnv()
   ElMessage.success('已删除')
 }
 async function saveEnv() {
@@ -63,7 +63,7 @@ async function saveAll() {
   env.value.PORT = env.value.PORT?.trim() || '3333'
   env.value.GATEWAY_API_KEY = env.value.GATEWAY_API_KEY?.trim() || ''
   await saveEnv()
-  await gateway.saveConfig(config.value)
+  await gateway.saveConfig(toRaw(config.value))
   await load()
   ElMessage.success('已保存')
 }

@@ -1,6 +1,6 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, toRaw } from 'vue'
 import { useGateway } from '../composables/useGateway'
 
 const gateway = useGateway()
@@ -49,7 +49,7 @@ function openEdit(id) {
 function closeModal() {
   modalOpen.value = false
 }
-function saveProvider() {
+async function saveProvider() {
   const nid = form.value.id?.trim() || editId.value
   if (!nid) return
   config.value.providers[nid] = {
@@ -59,8 +59,8 @@ function saveProvider() {
   }
   if (modalIsNew.value && editId.value && editId.value !== nid) delete config.value.providers[editId.value]
   closeModal()
-  gateway.saveConfig(config.value)
-  load()
+  await gateway.saveConfig(toRaw(config.value))
+  await load()
 }
 async function removeProvider(id) {
   try {
@@ -70,8 +70,8 @@ async function removeProvider(id) {
   }
   delete config.value.providers[id]
   config.value.backends = (config.value.backends || []).filter((b) => b.provider !== id)
-  gateway.saveConfig(config.value)
-  load()
+  await gateway.saveConfig(toRaw(config.value))
+  await load()
   ElMessage.success('已删除')
 }
 

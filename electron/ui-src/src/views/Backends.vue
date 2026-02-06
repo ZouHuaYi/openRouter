@@ -1,6 +1,6 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, toRaw } from 'vue'
 import { useGateway } from '../composables/useGateway'
 
 const gateway = useGateway()
@@ -8,12 +8,21 @@ const config = ref({ providers: {}, defaultModel: 'chat', backends: [] })
 const backendState = ref({})
 const modalOpen = ref(false)
 const editIndex = ref(-1)
-const form = ref({ provider: '', model: '' })
+const form = ref({ 
+  provider: '', 
+  model: '',
+  // 限流设置
+  cooldownEnabled: false,
+  cooldownType: 'preset', // preset | hours | days
+  cooldownPreset: 'day', // day | week | month
+  cooldownHours: 1,
+  cooldownDays: 1,
+})
 
 const COOLDOWN_PRESETS = [
-  { label: '1 天', tier: 'day' },
-  { label: '1 周', tier: 'week' },
-  { label: '1 月', tier: 'month' },
+  { label: '1 天（0点解封）', value: 'day' },
+  { label: '1 周（0点解封）', value: 'week' },
+  { label: '1 月（0点解封）', value: 'month' },
 ]
 
 function backendKey(b) {
@@ -45,13 +54,43 @@ function addMonthsFromNextMidnight(baseMs, months) {
   return utc - 8 * 60 * 60 * 1000
 }
 
-function computeUnblockAt(tier, existingUnblockAt) {
+// 计算解封时间
+function computeUnblockAt(type, value, existingUnblockAt) {
   const now = Date.now()
   const existing = existingUnblockAt ? new Date(existingUnblockAt).getTime() : 0
   const base = Math.max(now, existing || 0)
-  if (tier === 'day') return new Date(addDaysFromNextMidnight(base, 1)).toISOString()
-  if (tier === 'week') return new Date(addDaysFromNextMidnight(base, 7)).toISOString()
-  if (tier === 'month') return new Date(addMonthsFromNextMidnight(base, 1)).toISOString()
+  
+  console.log('[computeUnblockAt] 输入参数:', { type, value, existingUnblockAt, base: new Date(base).toISOString() })
+  
+  if (type === 'preset') {
+    // 预设模式：北京时间0点解封
+    let result
+    if (value === 'day') {
+      result = new Date(addDaysFromNextMidnight(base, 1)).toISOString()
+      console.log('[computeUnblockAt] 计算1天:', result)
+    } else if (value === 'week') {
+      result = new Date(addDaysFromNextMidnight(base, 7)).toISOString()
+      console.log('[computeUnblockAt] 计算1周:', result)
+    } else if (value === 'month') {
+      result = new Date(addMonthsFromNextMidnight(base, 1)).toISOString()
+      console.log('[computeUnblockAt] 计算1月:', result)
+    } else {
+      result = new Date(addDaysFromNextMidnight(base, 1)).toISOString()
+      console.log('[computeUnblockAt] 默认1天:', result, 'value是:', value)
+    }
+    return result
+  } else if (type === 'hours') {
+    // 按小时：从当前时刻 + 指定小时 + 3分钟延后
+    const hours = parseInt(value) || 1
+    const ms = now + hours * 60 * 60 * 1000 + 3 * 60 * 1000
+    return new Date(ms).toISOString()
+  } else if (type === 'days') {
+    // 按天数：从当前时刻 + 指定天数
+    const days = parseInt(value) || 1
+    const ms = now + days * 24 * 60 * 60 * 1000
+    return new Date(ms).toISOString()
+  }
+  
   return new Date(addDaysFromNextMidnight(base, 1)).toISOString()
 }
 
@@ -77,6 +116,8 @@ const rows = computed(() => (config.value.backends || []).map((b, i) => ({
   model: b.model,
   key: backendKey(b),
   status: backendStatus(b),
+  hasRule: !!b.cooldownRule,
+  rule: b.cooldownRule,
 })))
 
 async function load() {
@@ -85,47 +126,90 @@ async function load() {
   if (!config.value.backends) config.value.backends = []
 }
 
-function moveUp(index) {
+async function moveUp(index) {
   if (index <= 0) return
   const arr = [...config.value.backends]
   ;[arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]
   config.value.backends = arr
-  gateway.saveConfig(config.value)
-  load()
+  await gateway.saveConfig(toRaw(config.value))
+  await load()
 }
-function moveDown(index) {
+async function moveDown(index) {
   if (index >= config.value.backends.length - 1) return
   const arr = [...config.value.backends]
   ;[arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]
   config.value.backends = arr
-  gateway.saveConfig(config.value)
-  load()
+  await gateway.saveConfig(toRaw(config.value))
+  await load()
 }
 
 function openAdd() {
   editIndex.value = -1
-  form.value = { provider: providerIds()[0] || '', model: '' }
+  form.value = { 
+    provider: providerIds()[0] || '', 
+    model: '',
+    cooldownEnabled: false,
+    cooldownType: 'preset',
+    cooldownPreset: 'day',
+    cooldownHours: 1,
+    cooldownDays: 1,
+  }
   modalOpen.value = true
 }
 function openEdit(index) {
   editIndex.value = index
   const b = config.value.backends[index] || {}
-  form.value = { provider: b.provider || providerIds()[0] || '', model: b.model || '' }
+  
+  // 从后端配置中读取限流规则
+  const rule = b.cooldownRule || {}
+  const hasRule = !!rule.type
+  
+  form.value = { 
+    provider: b.provider || providerIds()[0] || '', 
+    model: b.model || '',
+    cooldownEnabled: hasRule,
+    cooldownType: rule.type || 'preset',
+    cooldownPreset: rule.type === 'preset' ? rule.value : 'day',
+    cooldownHours: rule.type === 'hours' ? rule.value : 1,
+    cooldownDays: rule.type === 'days' ? rule.value : 1,
+  }
   modalOpen.value = true
 }
 function closeModal() {
   modalOpen.value = false
 }
-function saveBackend() {
+async function saveBackend() {
   const provider = form.value.provider
   const model = form.value.model?.trim()
   if (!provider || !model) return
+  
+  // 构建后端条目，包含限流规则
   const entry = { provider, model }
+  
+  // 保存限流规则（规则不会立即触发限流）
+  if (form.value.cooldownEnabled) {
+    let ruleValue = form.value.cooldownPreset
+    if (form.value.cooldownType === 'hours') {
+      ruleValue = form.value.cooldownHours
+    } else if (form.value.cooldownType === 'days') {
+      ruleValue = form.value.cooldownDays
+    }
+    
+    entry.cooldownRule = {
+      type: form.value.cooldownType,
+      value: ruleValue
+    }
+  }
+  
+  // 保存后端配置（包含规则）
   if (editIndex.value >= 0) config.value.backends[editIndex.value] = entry
   else config.value.backends.push(entry)
+  
+  await gateway.saveConfig(toRaw(config.value))
+  
   closeModal()
-  gateway.saveConfig(config.value)
-  load()
+  await load()
+  ElMessage.success(editIndex.value >= 0 ? '已更新' : '已添加')
 }
 async function removeBackend(index) {
   const b = config.value.backends[index]
@@ -136,20 +220,82 @@ async function removeBackend(index) {
     return
   }
   config.value.backends.splice(index, 1)
-  gateway.saveConfig(config.value)
-  load()
+  await gateway.saveConfig(toRaw(config.value))
+  await load()
   ElMessage.success('已删除')
 }
 
-function setCooldown(key, tier) {
-  const current = backendState.value[key]?.unblockAt
-  const unblockAt = computeUnblockAt(tier, current)
-  gateway.setBackendCooldown(key, unblockAt)
-  load()
+async function triggerCooldown(row) {
+  console.log('===== 触发限流开始 =====')
+  console.log('row:', row)
+  
+  if (!row.hasRule) {
+    ElMessage.warning('该后端未配置限流规则')
+    return
+  }
+  
+  // 重新加载配置确保使用最新规则
+  await load()
+  
+  // 重新获取规则（使用最新配置）
+  const backend = config.value.backends[row.index]
+  console.log('backend:', backend)
+  
+  const rule = backend?.cooldownRule
+  console.log('rule:', rule)
+  
+  if (!rule) {
+    ElMessage.warning('该后端未配置限流规则')
+    return
+  }
+  
+  const current = backendState.value[row.key]?.unblockAt
+  const unblockAt = computeUnblockAt(rule.type, rule.value, current)
+  
+  console.log('触发限流完整信息:', { 
+    backend: `${backend.provider}:${backend.model}`,
+    rule: rule,
+    current: current,
+    unblockAt: unblockAt,
+    unblockAtBJ: new Date(unblockAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+  })
+  
+  await gateway.setBackendCooldown(row.key, unblockAt)
+  await load()
+  
+  const displayTime = new Date(unblockAt).toLocaleString('zh-CN', { 
+    timeZone: 'Asia/Shanghai', 
+    month: '2-digit', 
+    day: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+  console.log('===== 触发限流结束 =====')
+  ElMessage.success(`已触发限流，解封时间：${displayTime}`)
 }
-function clearCooldown(key) {
-  gateway.setBackendCooldown(key, null)
-  load()
+
+async function clearCooldown(key) {
+  await gateway.setBackendCooldown(key, null)
+  await load()
+  ElMessage.success('已解封')
+}
+
+async function refreshStatus() {
+  await load()
+  ElMessage.success('已刷新')
+}
+
+function formatRule(rule) {
+  if (!rule) return '未设置'
+  if (rule.type === 'preset') {
+    const map = { day: '1天', week: '1周', month: '1月' }
+    return `预设：${map[rule.value] || rule.value}`
+  } else if (rule.type === 'hours') {
+    return `${rule.value}小时`
+  } else if (rule.type === 'days') {
+    return `${rule.value}天`
+  }
+  return '未知'
 }
 
 onMounted(load)
@@ -157,46 +303,70 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="mb-3 text-slate-300 text-sm">限流规则：天/周/月按北京时间 00:00 解封。</div>
+    <div class="mb-3 flex items-center justify-between">
+      <div class="text-slate-300 text-sm">
+        <div class="font-semibold mb-1">限流机制说明：</div>
+        <div>• 在编辑对话框中配置<strong>限流规则</strong>（规则不会立即生效）</div>
+        <div>• 模型被限流时，点击<strong>"触发限流"</strong>按钮应用规则</div>
+        <div>• 预设模式（天/周/月）：北京时间 00:00 解封</div>
+        <div>• 小时模式：当前时刻 + 指定小时 + 3分钟缓冲</div>
+        <div>• 天数模式：当前时刻 + 指定天数</div>
+      </div>
+      <el-button type="success" @click="refreshStatus" size="small">
+        <span class="i-ep-refresh mr-1"></span>
+        刷新状态
+      </el-button>
+    </div>
+    
     <el-table :data="rows" border stripe size="small">
-      <el-table-column prop="provider" label="服务商" />
-      <el-table-column prop="model" label="模型"  />
-      <el-table-column label="状态" width="180" align="center">
+      <el-table-column prop="provider" label="服务商" width="120" />
+      <el-table-column prop="model" label="模型" min-width="180" />
+      <el-table-column label="限流规则" width="130" align="center">
+        <template #default="scope">
+          <el-tag v-if="scope.row.hasRule" type="info" size="small">
+            {{ formatRule(scope.row.rule) }}
+          </el-tag>
+          <span v-else class="text-slate-400 text-xs">未设置</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="当前状态" width="200" align="center">
         <template #default="scope">
           <el-tag v-if="scope.row.status.status === 'active'" type="success">可用</el-tag>
           <el-tag v-else type="warning">限流至 {{ formatUnblock(scope.row.status.unblockAt) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="限流设置" width="80" align="center">
+      <el-table-column label="快速操作" width="180" align="center">
         <template #default="scope">
-          <el-dropdown trigger="click">
-            <el-button size="small">设限</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="p in COOLDOWN_PRESETS" :key="p.tier" @click="setCooldown(scope.row.key, p.tier)">
-                  {{ p.label }}
-                </el-dropdown-item>
-                <el-dropdown-item divided v-if="scope.row.status.status === 'cooldown'" @click="clearCooldown(scope.row.key)">
-                  立即解封
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
-      </el-table-column>
-      <el-table-column label="排序" width="120" align="center">
-        <template #default="scope">
-          <el-button-group>
-            <el-button size="small" @click="moveUp(scope.row.index)">上移</el-button>
-            <el-button size="small" @click="moveDown(scope.row.index)">下移</el-button>
+          <el-button-group v-if="scope.row.status.status === 'cooldown'">
+            <el-button size="small" type="success" @click="clearCooldown(scope.row.key)">
+              解封
+            </el-button>
+          </el-button-group>
+          <el-button-group v-else>
+            <el-button 
+              size="small" 
+              type="warning"
+              :disabled="!scope.row.hasRule"
+              @click="triggerCooldown(scope.row)"
+            >
+              触发限流
+            </el-button>
           </el-button-group>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" align="center">
+      <el-table-column label="排序" width="100" align="center">
+        <template #default="scope">
+          <el-button-group>
+            <el-button size="small" @click="moveUp(scope.row.index)">↑</el-button>
+            <el-button size="small" @click="moveDown(scope.row.index)">↓</el-button>
+          </el-button-group>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="100" align="center">
         <template #default="scope">
           <el-button-group>
             <el-button size="small" @click="openEdit(scope.row.index)">编辑</el-button>
-            <el-button size="small" type="danger" @click="removeBackend(scope.row.index)">删除</el-button>
+            <el-button size="small" type="danger" @click="removeBackend(scope.row.index)">删</el-button>
           </el-button-group>
         </template>
       </el-table-column>
@@ -206,16 +376,66 @@ onMounted(load)
       <el-button type="primary" @click="openAdd">添加后端</el-button>
     </div>
 
-    <el-dialog v-model="modalOpen" :title="editIndex >= 0 ? '编辑后端' : '添加后端'" width="520px" align-center>
-      <el-form label-width="110px">
+    <el-dialog :top="30" v-model="modalOpen" :title="editIndex >= 0 ? '编辑后端' : '添加后端'" width="600px" align-center>
+      <el-form label-width="120px">
         <el-form-item label="服务商">
-          <el-select v-model="form.provider" placeholder="选择服务商">
+          <el-select v-model="form.provider" placeholder="选择服务商" :disabled="editIndex >= 0">
             <el-option v-for="pid in providerIds()" :key="pid" :label="pid" :value="pid" />
           </el-select>
         </el-form-item>
         <el-form-item label="模型">
-          <el-input v-model="form.model" placeholder="模型 ID" />
+          <el-input v-model="form.model" placeholder="模型 ID" :disabled="editIndex >= 0" />
         </el-form-item>
+        
+        <el-divider content-position="left">限流规则配置</el-divider>
+        
+        <el-alert
+          title="说明：这里配置的是限流规则，不会立即生效。当模型被限流时，点击『触发限流』按钮应用规则。"
+          type="info"
+          :closable="false"
+          show-icon
+          class="mb-3"
+        />
+        
+        <el-form-item label="启用限流规则">
+          <el-switch v-model="form.cooldownEnabled" />
+        </el-form-item>
+        
+        <template v-if="form.cooldownEnabled">
+          <el-form-item label="限流类型">
+            <el-radio-group v-model="form.cooldownType">
+              <el-radio value="preset">预设（0点解封）</el-radio>
+              <el-radio value="hours">按小时（+3分钟）</el-radio>
+              <el-radio value="days">按天数</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          
+          <el-form-item v-if="form.cooldownType === 'preset'" label="预设时长">
+            <el-select v-model="form.cooldownPreset">
+              <el-option v-for="p in COOLDOWN_PRESETS" :key="p.value" :label="p.label" :value="p.value" />
+            </el-select>
+          </el-form-item>
+          
+          <el-form-item v-if="form.cooldownType === 'hours'" label="小时数">
+            <el-input-number v-model="form.cooldownHours" :min="1" :max="168" />
+            <span class="ml-2 text-slate-400 text-xs">解封时间 = 当前时刻 + {{ form.cooldownHours }} 小时 + 3 分钟</span>
+          </el-form-item>
+          
+          <el-form-item v-if="form.cooldownType === 'days'" label="天数">
+            <el-input-number v-model="form.cooldownDays" :min="1" :max="90" />
+            <span class="ml-2 text-slate-400 text-xs">解封时间 = 当前时刻 + {{ form.cooldownDays }} 天</span>
+          </el-form-item>
+          
+          <div v-if="form.cooldownType === 'preset'" class="text-slate-400 text-xs ml-2">
+            预设模式按北京时间 00:00 解封，适合日/周/月限额场景
+          </div>
+          <div v-if="form.cooldownType === 'hours'" class="text-amber-400 text-xs ml-2">
+            小时模式自动延后 3 分钟，避免服务器延迟导致的过早解封
+          </div>
+          <div v-if="form.cooldownType === 'days'" class="text-slate-400 text-xs ml-2">
+            天数模式从当前时刻精确计算，适合固定天数限制场景
+          </div>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="closeModal">取消</el-button>

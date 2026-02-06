@@ -76,6 +76,34 @@ function writeEnv(obj) {
   fs.writeFileSync(p, lines.join('\n') + '\n', 'utf-8');
 }
 
+function ensureConfigFiles() {
+  const root = getAppRoot();
+  const configDir = path.join(root, 'config');
+  
+  // 确保 config 目录存在
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+  
+  // 确保 providers.json 存在
+  const configPath = getConfigPath();
+  if (!fs.existsSync(configPath)) {
+    writeConfig({ providers: {}, defaultModel: 'chat', backends: [] });
+  }
+  
+  // 确保 backend-state.json 存在
+  const statePath = getBackendStatePath();
+  if (!fs.existsSync(statePath)) {
+    writeBackendState({});
+  }
+  
+  // 确保 .env 存在
+  const envPath = getEnvPath();
+  if (!fs.existsSync(envPath)) {
+    writeEnv({ PORT: '3333', GATEWAY_API_KEY: '' });
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
@@ -93,6 +121,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ensureConfigFiles();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

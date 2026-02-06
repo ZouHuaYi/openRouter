@@ -1,5 +1,13 @@
 export function useGateway() {
   const g = typeof window !== 'undefined' && window.gateway
+  const safeClone = (data) => {
+    if (data == null) return data
+    try {
+      return JSON.parse(JSON.stringify(data))
+    } catch {
+      return data
+    }
+  }
   if (!g) {
     return {
       getConfig: () => Promise.resolve({ providers: {}, defaultModel: 'chat', backends: [] }),
@@ -17,5 +25,9 @@ export function useGateway() {
       onGatewayError: () => {},
     }
   }
-  return g
+  return {
+    ...g,
+    saveConfig: (data) => g.saveConfig(safeClone(data)),
+    setEnvAll: (obj) => g.setEnvAll(safeClone(obj)),
+  }
 }

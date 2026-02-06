@@ -1,6 +1,6 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, toRaw } from 'vue'
+import { computed, onMounted, ref, toRaw, defineExpose } from 'vue'
 import { useGateway } from '../composables/useGateway'
 
 const gateway = useGateway()
@@ -76,6 +76,8 @@ async function removeProvider(id) {
 }
 
 onMounted(load)
+
+defineExpose({ reload: load })
 </script>
 
 <template>

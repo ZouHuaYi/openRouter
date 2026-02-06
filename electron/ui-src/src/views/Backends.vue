@@ -1,6 +1,6 @@
 <script setup>
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, toRaw } from 'vue'
+import { computed, onMounted, ref, toRaw, defineExpose } from 'vue'
 import { useGateway } from '../composables/useGateway'
 
 const gateway = useGateway()
@@ -315,6 +315,8 @@ function formatRule(rule) {
 }
 
 onMounted(load)
+
+defineExpose({ reload: load })
 </script>
 
 <template>
@@ -395,7 +397,7 @@ onMounted(load)
     <el-dialog  :z-index="3000" v-model="modalOpen" :title="editIndex >= 0 ? '编辑后端' : '添加后端'" width="600px" align-center append-to-body>
       <el-form label-width="120px">
         <el-form-item label="服务商">
-          <el-select v-model="form.provider" popper-class="dialog-popper" teleported="true" placeholder="选择服务商" :disabled="editIndex >= 0">
+          <el-select v-model="form.provider" append-to="body" placeholder="选择服务商" :disabled="editIndex >= 0">
             <el-option v-for="pid in providerIds()" :key="pid" :label="pid" :value="pid" />
           </el-select>
         </el-form-item>
@@ -427,8 +429,8 @@ onMounted(load)
           </el-form-item>
           
           <el-form-item v-if="form.cooldownType === 'preset'" label="预设时长">
-            <el-select v-model="form.cooldownPreset" popper-class="dialog-popper" :teleported="true"
-  :append-to-body="true" >
+            <el-select v-model="form.cooldownPreset" 
+            append-to="body">
               <el-option v-for="p in COOLDOWN_PRESETS" :key="p.value" :label="p.label" :value="p.value" />
             </el-select>
           </el-form-item>

@@ -2,4 +2,5 @@ node_modules/
 .env
 *.log
 .gateway.pid
+dist_electron/
 config/backend-state.json

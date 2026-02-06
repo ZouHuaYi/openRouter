@@ -6,20 +6,31 @@ const { spawn } = require('child_process');
 let mainWindow = null;
 let gatewayProcess = null;
 
+// Use a stable userData path across dev/packaged to avoid config drift
+app.setPath('userData', path.join(app.getPath('appData'), 'openrouter-gateway'));
+
 function getAppRoot() {
   return app.isPackaged ? path.dirname(app.getPath('exe')) : process.cwd();
 }
 
+function getRuntimeRoot() {
+  return app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked') : getAppRoot();
+}
+
+function getConfigRoot() {
+  return app.isPackaged ? path.join(app.getPath('userData'), 'config') : path.join(getAppRoot(), 'config');
+}
+
 function getConfigPath() {
-  return path.join(getAppRoot(), 'config', 'providers.json');
+  return path.join(getConfigRoot(), 'providers.json');
 }
 
 function getEnvPath() {
-  return path.join(getAppRoot(), '.env');
+  return app.isPackaged ? path.join(app.getPath('userData'), '.env') : path.join(getAppRoot(), '.env');
 }
 
 function getBackendStatePath() {
-  return path.join(getAppRoot(), 'config', 'backend-state.json');
+  return path.join(getConfigRoot(), 'backend-state.json');
 }
 
 function readBackendState() {
@@ -77,8 +88,7 @@ function writeEnv(obj) {
 }
 
 function ensureConfigFiles() {
-  const root = getAppRoot();
-  const configDir = path.join(root, 'config');
+  const configDir = getConfigRoot();
   
   // 确保 config 目录存在
   if (!fs.existsSync(configDir)) {
@@ -171,9 +181,10 @@ ipcMain.handle('getGatewayStatus', () => ({
 
 ipcMain.handle('startGateway', async () => {
   if (gatewayProcess && !gatewayProcess.killed) return { ok: false, error: 'Already running' };
-  const root = getAppRoot();
+  const root = getRuntimeRoot();
   const envPath = getEnvPath();
   const env = { ...process.env };
+  env.CONFIG_DIR = getConfigRoot();
   if (fs.existsSync(envPath)) {
     const content = fs.readFileSync(envPath, 'utf-8');
     Object.assign(env, parseEnv(content));

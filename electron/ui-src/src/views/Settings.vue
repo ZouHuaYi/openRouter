@@ -69,6 +69,8 @@ async function saveAll() {
 }
 
 onMounted(load)
+
+defineExpose({ reload: load })
 </script>
 
 <template>

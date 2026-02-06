@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useGateway } from './composables/useGateway'
 import Backends from './views/Backends.vue'
 import Providers from './views/Providers.vue'
@@ -8,6 +8,9 @@ import Status from './views/Status.vue'
 
 const tab = ref('status')
 const statusRef = ref(null)
+const providersRef = ref(null)
+const backendsRef = ref(null)
+const settingsRef = ref(null)
 const gateway = useGateway()
 const status = ref({ running: false, port: 3333 })
 
@@ -19,6 +22,14 @@ async function handleStart() {
   await statusRef.value?.start?.()
   await refreshStatus()
 }
+
+function handleTabClick(tab) {
+  if (tab?.props?.name === 'status') statusRef.value?.reload?.()
+  if (tab?.props?.name === 'providers') providersRef.value?.reload?.()
+  if (tab?.props?.name === 'backends') backendsRef.value?.reload?.()
+  if (tab?.props?.name === 'settings') settingsRef.value?.reload?.()
+}
+
 async function handleStop() {
   await statusRef.value?.stop?.()
   await refreshStatus()
@@ -27,6 +38,13 @@ async function handleStop() {
 onMounted(() => {
   refreshStatus()
   gateway.onGatewayExit(() => refreshStatus())
+})
+
+watch(tab, (name) => {
+  if (name === 'status') statusRef.value?.reload?.()
+  if (name === 'providers') providersRef.value?.reload?.()
+  if (name === 'backends') backendsRef.value?.reload?.()
+  if (name === 'settings') settingsRef.value?.reload?.()
 })
 </script>
 
@@ -50,18 +68,18 @@ onMounted(() => {
           </div>
         </div>
 
-        <el-tabs v-model="tab" type="border-card" class="bg-slate-900 w-full" stretch>
+        <el-tabs v-model="tab" type="border-card" class="bg-slate-900 w-full" stretch @tab-click="handleTabClick">
           <el-tab-pane label="状态" name="status">
             <Status ref="statusRef" @status-change="refreshStatus" />
           </el-tab-pane>
           <el-tab-pane label="服务商" name="providers">
-            <Providers />
+            <Providers ref="providersRef" />
           </el-tab-pane>
           <el-tab-pane label="模型列表" name="backends">
-            <Backends />
+            <Backends ref="backendsRef" />
           </el-tab-pane>
           <el-tab-pane label="设置" name="settings">
-            <Settings />
+            <Settings ref="settingsRef" />
           </el-tab-pane>
         </el-tabs>
       </el-card>
@@ -78,7 +96,6 @@ onMounted(() => {
 }
 
 .el-card__body {
-  overflow-x: hidden;
   padding: 16px !important;
 }
 
@@ -95,7 +112,9 @@ onMounted(() => {
 .el-cascader__dropdown {
   z-index: 99999 !important;
 }
-
+.dialog-popper {
+  z-index: 99999 !important;
+}
 :root {
   --el-z-index-popper: 99999;
 }

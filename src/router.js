@@ -5,6 +5,19 @@ let providers = {};
 let defaultModel = 'chat';
 let backendsList = [];
 
+function resolveConfigDir() {
+  if (process.env.CONFIG_DIR && String(process.env.CONFIG_DIR).trim()) return String(process.env.CONFIG_DIR).trim();
+  return path.join(process.cwd(), 'config');
+}
+
+function resolveConfigPath() {
+  return path.join(resolveConfigDir(), 'providers.json');
+}
+
+function resolveStatePath() {
+  return path.join(resolveConfigDir(), 'backend-state.json');
+}
+
 function resolveEnvRef(value) {
   if (typeof value !== 'string') return value;
   const m = value.match(/^\$\{(.+)\}$/);
@@ -13,7 +26,7 @@ function resolveEnvRef(value) {
 }
 
 function loadConfig(configPath) {
-  const p = configPath || path.join(process.cwd(), 'config', 'providers.json');
+  const p = configPath || resolveConfigPath();
   const raw = fs.readFileSync(p, 'utf-8');
   const data = JSON.parse(raw);
   const normPath = (p) => (p && String(p).trim()) ? '/' + String(p).trim().replace(/^\//, '') : '/v1/chat/completions';
@@ -49,7 +62,7 @@ function getDefaultModel() {
   return defaultModel;
 }
 
-const statePath = () => path.join(process.cwd(), 'config', 'backend-state.json');
+const statePath = () => resolveStatePath();
 
 function readBackendState() {
   const p = statePath();

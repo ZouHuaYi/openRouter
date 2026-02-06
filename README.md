@@ -74,3 +74,35 @@ npm start
 ```
 
 开发时可用 `npm run dev`（带 --watch）。
+
+## 在openclaw 中使用的配置
+
+```
+{
+  "models": {
+    "providers": {
+      "local": {
+        "baseUrl": "http://127.0.0.1:3333/v1",  
+        "apiKey": "sk-1234567890",                     
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "my-chat",                   
+            "name": "My Local Model",
+            "contextWindow": 128000,               
+            "maxTokens": 8192,
+            "reasoning": false                 
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "local/my-chat"
+      }
+    }
+  }
+}
+```

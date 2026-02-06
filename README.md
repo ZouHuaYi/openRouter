@@ -75,6 +75,16 @@ npm start
 
 开发时可用 `npm run dev`（带 --watch）。
 
+### 快速启动 / 关闭
+
+| 系统 | 启动 | 关闭 |
+|------|------|------|
+| **Windows** | 双击 `start.bat`（无窗口后台启动，由 `start.vbs` 执行） | 双击 `stop.bat`（按端口结束进程） |
+| **Mac / Linux** | `./start.sh`（首次请 `chmod +x start.sh stop.sh`） | `./stop.sh` |
+
+- Windows：双击 `start.bat` 会调用 `start.vbs` 在**无窗口**下启动网关；需看日志时可在项目目录执行 `npm start`。`stop.bat` 通过 PowerShell 按端口 3333 查找并结束进程。若修改了 `.env` 中的 `PORT`，请编辑 `stop.bat` 中的 `set PORT=3333`。
+- Mac/Linux：`start.sh` 在后台运行并将 PID 写入 `.gateway.pid`；`stop.sh` 按该 PID 或端口 3333 结束进程。若修改了 `.env` 中的 `PORT`，停止时可执行 `PORT=你的端口 ./stop.sh`。
+
 ## 在openclaw 中使用的配置
 
 ```

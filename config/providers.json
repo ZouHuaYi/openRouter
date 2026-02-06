@@ -12,6 +12,7 @@
     { "provider": "doubao", "model": "glm-4-7-251222" },
     { "provider": "doubao", "model": "doubao-seed-1-6-251015" },
     { "provider": "doubao", "model": "deepseek-v3-2-251201" },
-    { "provider": "doubao", "model": "deepseek-v3-1-terminus" }
+    { "provider": "doubao", "model": "deepseek-v3-1-terminus" },
+    { "provider": "doubao", "model": "doubao-seed-1-6-flash-250828" }
   ]
 }

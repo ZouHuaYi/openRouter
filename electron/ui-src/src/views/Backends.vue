@@ -301,6 +301,20 @@ async function refreshStatus() {
   ElMessage.success('已刷新')
 }
 
+async function handleExport() {
+  const res = await gateway.exportConfig()
+  if (res.ok) ElMessage.success('配置导出成功')
+  else if (res.error !== 'Canceled') ElMessage.error('导出失败: ' + res.error)
+}
+
+async function handleImport() {
+  const res = await gateway.importConfig()
+  if (res.ok) {
+    ElMessage.success('配置导入成功')
+    await load()
+  } else if (res.error !== 'Canceled') ElMessage.error('导入失败: ' + res.error)
+}
+
 function formatRule(rule) {
   if (!rule) return '未设置'
   if (rule.type === 'preset') {
@@ -390,8 +404,10 @@ defineExpose({ reload: load })
       </el-table-column>
     </el-table>
 
-    <div class="mt-3">
+    <div class="mt-3 flex items-center gap-2">
       <el-button type="primary" @click="openAdd">添加后端</el-button>
+      <el-button @click="handleExport">导出配置</el-button>
+      <el-button @click="handleImport">导入配置</el-button>
     </div>
 
     <el-dialog  :z-index="3000" v-model="modalOpen" :title="editIndex >= 0 ? '编辑后端' : '添加后端'" width="600px" align-center append-to-body>

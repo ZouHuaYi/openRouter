@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('gateway', {
   getGatewayStatus: () => ipcRenderer.invoke('getGatewayStatus'),
   startGateway: () => ipcRenderer.invoke('startGateway'),
   stopGateway: () => ipcRenderer.invoke('stopGateway'),
+  importConfig: () => ipcRenderer.invoke('importConfig'),
+  exportConfig: () => ipcRenderer.invoke('exportConfig'),
   onGatewayLog: (cb) => { ipcRenderer.on('gateway-log', (_, msg) => cb(msg)); },
   onGatewayExit: (cb) => { ipcRenderer.on('gateway-exit', (_, code) => cb(code)); },
   onGatewayError: (cb) => { ipcRenderer.on('gateway-error', (_, msg) => cb(msg)); },

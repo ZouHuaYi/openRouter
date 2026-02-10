@@ -75,6 +75,20 @@ async function removeProvider(id) {
   ElMessage.success('已删除')
 }
 
+async function handleExport() {
+  const res = await gateway.exportConfig()
+  if (res.ok) ElMessage.success('配置导出成功')
+  else if (res.error !== 'Canceled') ElMessage.error('导出失败: ' + res.error)
+}
+
+async function handleImport() {
+  const res = await gateway.importConfig()
+  if (res.ok) {
+    ElMessage.success('配置导入成功')
+    await load()
+  } else if (res.error !== 'Canceled') ElMessage.error('导入失败: ' + res.error)
+}
+
 onMounted(load)
 
 defineExpose({ reload: load })
@@ -82,8 +96,10 @@ defineExpose({ reload: load })
 
 <template>
   <div>
-    <div class="mb-3">
+    <div class="mb-3 flex items-center gap-2">
       <el-button type="primary" @click="openAdd">添加服务商</el-button>
+      <el-button @click="handleExport">导出配置</el-button>
+      <el-button @click="handleImport">导入配置</el-button>
     </div>
     <el-table :data="rows" border stripe size="small">
       <el-table-column prop="id" label="ID" width="160" />

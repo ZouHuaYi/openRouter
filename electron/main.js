@@ -166,9 +166,15 @@ ipcMain.handle('getBackendState', () => readBackendState());
 ipcMain.handle('setBackendCooldown', (_, key, unblockAt) => {
   const state = readBackendState();
   if (unblockAt == null || unblockAt === '') {
-    delete state[key];
+    // Manual unblock: clear unblockAt AND reset tokens
+    if (state[key]) {
+      state[key].unblockAt = null;
+      state[key].usedTokens = 0;
+    }
   } else {
-    state[key] = { unblockAt: typeof unblockAt === 'string' ? unblockAt : new Date(unblockAt).toISOString() };
+    // Manual cooldown or update
+    if (!state[key]) state[key] = { usedTokens: 0 };
+    state[key].unblockAt = typeof unblockAt === 'string' ? unblockAt : new Date(unblockAt).toISOString();
   }
   writeBackendState(state);
   return { ok: true };

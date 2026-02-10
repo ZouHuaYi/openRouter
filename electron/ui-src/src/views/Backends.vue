@@ -17,6 +17,7 @@ const form = ref({
   cooldownPreset: 'day', // day | week | month
   cooldownHours: 1,
   cooldownDays: 1,
+  maxTokens: 0,
 })
 
 const COOLDOWN_PRESETS = [
@@ -132,15 +133,21 @@ function formatUnblock(at) {
 
 const providerIds = () => Object.keys(config.value.providers || {})
 
-const rows = computed(() => (config.value.backends || []).map((b, i) => ({
-  index: i,
-  provider: b.provider,
-  model: b.model,
-  key: backendKey(b),
-  status: backendStatus(b),
-  hasRule: !!b.cooldownRule,
-  rule: b.cooldownRule,
-})))
+const rows = computed(() => (config.value.backends || []).map((b, i) => {
+  const key = backendKey(b)
+  const state = backendState.value[key] || {}
+  return {
+    index: i,
+    provider: b.provider,
+    model: b.model,
+    key,
+    status: backendStatus(b),
+    hasRule: !!b.cooldownRule,
+    rule: b.cooldownRule,
+    maxTokens: b.maxTokens || 0,
+    usedTokens: state.usedTokens || 0,
+  }
+}))
 
 async function load() {
   config.value = await gateway.getConfig()
@@ -175,6 +182,7 @@ function openAdd() {
     cooldownPreset: 'day',
     cooldownHours: 1,
     cooldownDays: 1,
+    maxTokens: 0,
   }
   modalOpen.value = true
 }
@@ -194,6 +202,7 @@ function openEdit(index) {
     cooldownPreset: rule.type === 'preset' ? rule.value : 'day',
     cooldownHours: rule.type === 'hours' ? rule.value : 1,
     cooldownDays: rule.type === 'days' ? rule.value : 1,
+    maxTokens: b.maxTokens || 0,
   }
   modalOpen.value = true
 }
@@ -206,7 +215,7 @@ async function saveBackend() {
   if (!provider || !model) return
   
   // 构建后端条目，包含限流规则
-  const entry = { provider, model }
+  const entry = { provider, model, maxTokens: form.value.maxTokens || 0 }
   
   // 保存限流规则（规则不会立即触发限流）
   if (form.value.cooldownEnabled) {
@@ -361,6 +370,20 @@ defineExpose({ reload: load })
           <span v-else class="text-slate-400 text-xs">未设置</span>
         </template>
       </el-table-column>
+      <el-table-column label="Token 统计" width="140" align="center">
+        <template #default="scope">
+          <div v-if="scope.row.maxTokens > 0" class="flex flex-col items-center">
+            <el-progress 
+              :percentage="Math.min(100, Math.round((scope.row.usedTokens / scope.row.maxTokens) * 100))" 
+              :status="scope.row.usedTokens >= scope.row.maxTokens ? 'exception' : ''"
+              :stroke-width="12"
+              class="w-full mb-1"
+            />
+            <span class="text-[10px] text-slate-400">{{ scope.row.usedTokens }} / {{ scope.row.maxTokens }}</span>
+          </div>
+          <span v-else class="text-slate-400 text-xs">-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="当前状态" width="180" align="center">
         <template #default="scope">
           <el-tag v-if="scope.row.status.status === 'active'" type="success">可用</el-tag>
@@ -459,6 +482,11 @@ defineExpose({ reload: load })
           <el-form-item v-if="form.cooldownType === 'days'" label="天数">
             <el-input-number v-model="form.cooldownDays" :min="1" :max="90" />
             <span class="ml-2 text-slate-400 text-xs">解封时间 = 当前时刻 + {{ form.cooldownDays }} 天</span>
+          </el-form-item>
+
+          <el-form-item label="最大 Token">
+            <el-input-number v-model="form.maxTokens" :min="0" :step="1000" />
+            <span class="ml-2 text-slate-400 text-xs">设为 0 表示不限制。超额将自动触发限流。</span>
           </el-form-item>
           
           <div v-if="form.cooldownType === 'preset'" class="text-slate-400 text-xs ml-2">

@@ -49,6 +49,7 @@ function loadConfig(configPath) {
       chatPath: (b.chatPath != null && String(b.chatPath).trim()) ? normPath(b.chatPath) : provider.chatPath,
       backendModel: b.model || defaultModel,
       cooldownRule: b.cooldownRule || null,
+      maxTokens: b.maxTokens || null,
     };
   }).filter(Boolean);
   return { providers, defaultModel, backends: backendsList };
@@ -77,13 +78,37 @@ function readBackendState() {
 function getBackendsFiltered() {
   const state = readBackendState();
   const now = Date.now();
-  return backendsList.filter((b) => {
+  let stateChanged = false;
+
+  const filtered = backendsList.filter((b) => {
     const key = `${b.providerId}:${b.backendModel}`;
     const s = state[key];
-    if (!s || !s.unblockAt) return true;
-    const at = new Date(s.unblockAt).getTime();
-    return Number.isNaN(at) || at <= now;
+    if (!s) return true;
+
+    // Check time-based cooldown
+    if (s.unblockAt) {
+      const at = new Date(s.unblockAt).getTime();
+      if (!Number.isNaN(at) && at > now) return false;
+      
+      // Cooldown expired: reset tokens and unblockAt
+      delete s.unblockAt;
+      s.usedTokens = 0;
+      stateChanged = true;
+    }
+
+    // Check token-based limit
+    if (b.maxTokens && s.usedTokens >= b.maxTokens) {
+      // If we are here, it means we hit token limit but unblockAt wasn't set or expired.
+      // This case shouldn't normally happen if we set unblockAt immediately when hitting limit,
+      // but as a fallback, we return false.
+      return false;
+    }
+
+    return true;
   });
+
+  if (stateChanged) writeBackendState(state);
+  return filtered;
 }
 
 function writeBackendState(state) {
@@ -93,4 +118,23 @@ function writeBackendState(state) {
   fs.writeFileSync(p, JSON.stringify(state, null, 2), 'utf-8');
 }
 
-module.exports = { loadConfig, getBackends, getBackendsFiltered, getDefaultModel, readBackendState, writeBackendState, statePath };
+function updateBackendUsage(providerId, model, tokens, computeUnblockAt) {
+  const key = `${providerId}:${model}`;
+  const state = readBackendState();
+  if (!state[key]) state[key] = { usedTokens: 0 };
+  if (state[key].usedTokens == null) state[key].usedTokens = 0;
+  
+  state[key].usedTokens += tokens;
+
+  // Find the backend config to check maxTokens and cooldownRule
+  const backend = backendsList.find(b => b.providerId === providerId && b.backendModel === model);
+  if (backend && backend.maxTokens && state[key].usedTokens >= backend.maxTokens) {
+    if (!state[key].unblockAt) {
+      state[key].unblockAt = computeUnblockAt(backend.cooldownRule, null);
+    }
+  }
+
+  writeBackendState(state);
+}
+
+module.exports = { loadConfig, getBackends, getBackendsFiltered, getDefaultModel, readBackendState, writeBackendState, updateBackendUsage, statePath };

@@ -1,5 +1,5 @@
-const { Readable } = require('stream');
-const { getBackendsFiltered, getDefaultModel, readBackendState, writeBackendState } = require('../router');
+const { Readable, Transform } = require('stream');
+const { getBackendsFiltered, getDefaultModel, readBackendState, writeBackendState, updateBackendUsage } = require('../router');
 const { forward, shouldRetry } = require('../proxy');
 
 function beijingParts(ms) {
@@ -122,13 +122,38 @@ async function chatRoutes(fastify) {
             'cache-control': 'no-cache',
             connection: 'keep-alive',
           });
-          Readable.fromWeb(res.body).pipe(reply.raw);
+
+          const tracker = new Transform({
+            transform(chunk, encoding, callback) {
+              const str = chunk.toString();
+              const lines = str.split('\n');
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const dataStr = line.slice(6).trim();
+                  if (dataStr === '[DONE]') continue;
+                  try {
+                    const json = JSON.parse(dataStr);
+                    if (json.usage && json.usage.total_tokens) {
+                      updateBackendUsage(backend.providerId, backend.backendModel, json.usage.total_tokens, computeUnblockAt);
+                    }
+                  } catch (e) {}
+                }
+              }
+              this.push(chunk);
+              callback();
+            }
+          });
+
+          Readable.fromWeb(res.body).pipe(tracker).pipe(reply.raw);
           return;
         }
         const text = await res.text();
         let out = text;
         try {
           const data = JSON.parse(text);
+          if (data && data.usage && data.usage.total_tokens) {
+            updateBackendUsage(backend.providerId, backend.backendModel, data.usage.total_tokens, computeUnblockAt);
+          }
           if (data && typeof data.model === 'string') data.model = defaultModelId;
           out = JSON.stringify(data);
         } catch (_) {}

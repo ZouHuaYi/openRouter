@@ -343,97 +343,102 @@ defineExpose({ reload: load })
 </script>
 
 <template>
-  <div>
-    <div class="mb-3 flex items-center justify-between">
-      <div class="text-slate-300 text-sm">
-        <div class="font-semibold mb-1">限流机制说明：</div>
-        <div>• 在编辑对话框中配置<strong>限流规则</strong>（规则不会立即生效）</div>
-        <div>• 模型被限流时，点击<strong>"触发限流"</strong>按钮应用规则</div>
-        <div>• 预设模式（天/周/月）：北京时间 00:00 解封</div>
-        <div>• 小时模式：当前时刻 + 指定小时 + 3分钟缓冲</div>
-        <div>• 天数模式：当前时刻 + 指定天数</div>
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-base font-semibold text-slate-800">模型路由与限流</div>
+        <div class="text-sm text-slate-500">管理后端模型、限流规则与运行状态</div>
       </div>
-      <el-button type="success" @click="refreshStatus" size="small">
-        <span class="i-ep-refresh mr-1"></span>
-        刷新状态
-      </el-button>
-    </div>
-    
-    <el-table :data="rows" border stripe size="small">
-      <el-table-column prop="provider" label="服务商" width="120" />
-      <el-table-column prop="model" label="模型" min-width="180" />
-      <el-table-column label="限流规则" width="130" align="center">
-        <template #default="scope">
-          <el-tag v-if="scope.row.hasRule" type="info" size="small">
-            {{ formatRule(scope.row.rule) }}
-          </el-tag>
-          <span v-else class="text-slate-400 text-xs">未设置</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="Token 统计" width="140" align="center">
-        <template #default="scope">
-          <div v-if="scope.row.maxTokens > 0" class="flex flex-col items-center">
-            <el-progress 
-              :percentage="Math.min(100, Math.round((scope.row.usedTokens / scope.row.maxTokens) * 100))" 
-              :status="scope.row.usedTokens >= scope.row.maxTokens ? 'exception' : ''"
-              :stroke-width="12"
-              class="w-full mb-1"
-            />
-            <span class="text-[10px] text-slate-400">{{ scope.row.usedTokens }} / {{ scope.row.maxTokens }}</span>
-          </div>
-          <span v-else class="text-slate-400 text-xs">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="当前状态" width="180" align="center">
-        <template #default="scope">
-          <el-tag v-if="scope.row.status.status === 'active'" type="success">可用</el-tag>
-          <el-tag v-else type="warning">限流至 {{ formatUnblock(scope.row.status.unblockAt) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="快速操作" width="140" align="center">
-        <template #default="scope">
-          <el-button-group v-if="scope.row.status.status === 'cooldown'">
-            <el-button size="small" type="success" @click="clearCooldown(scope.row.key)">
-              解封
-            </el-button>
-          </el-button-group>
-          <el-button-group v-else>
-            <el-button 
-              size="small" 
-              type="warning"
-              :disabled="!scope.row.hasRule"
-              @click="triggerCooldown(scope.row)"
-            >
-              触发限流
-            </el-button>
-          </el-button-group>
-        </template>
-      </el-table-column>
-      <el-table-column label="排序" width="100" align="center">
-        <template #default="scope">
-          <el-button-group>
-            <el-button size="small" @click="moveUp(scope.row.index)">↑</el-button>
-            <el-button size="small" @click="moveDown(scope.row.index)">↓</el-button>
-          </el-button-group>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="100" align="center">
-        <template #default="scope">
-          <el-button-group>
-            <el-button size="small" @click="openEdit(scope.row.index)">编辑</el-button>
-            <el-button size="small" type="danger" @click="removeBackend(scope.row.index)">删</el-button>
-          </el-button-group>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <div class="mt-3 flex items-center gap-2">
-      <el-button type="primary" @click="openAdd">添加后端</el-button>
-      <el-button @click="handleExport">导出配置</el-button>
-      <el-button @click="handleImport">导入配置</el-button>
+      <div class="flex items-center gap-2">
+        <el-button type="success" @click="refreshStatus" size="small">
+          <span class="i-ep-refresh mr-1"></span>
+          刷新状态
+        </el-button>
+        <el-button type="primary" @click="openAdd" size="small">添加后端</el-button>
+        <el-button @click="handleExport" size="small">导出配置</el-button>
+        <el-button @click="handleImport" size="small">导入配置</el-button>
+      </div>
     </div>
 
-    <el-dialog  :z-index="3000" v-model="modalOpen" :title="editIndex >= 0 ? '编辑后端' : '添加后端'" width="600px" align-center append-to-body>
+    <el-alert
+      title="限流规则不会立即生效。模型被限流时，请点击“触发限流”按钮应用规则。"
+      type="info"
+      :closable="false"
+      show-icon
+    />
+
+    <el-card shadow="never" class="rounded-xl border border-slate-200 bg-white">
+      <el-empty v-if="rows.length === 0" description="暂无后端，先添加一个吧" />
+      <el-table v-else :data="rows" border stripe size="small">
+        <el-table-column prop="provider" label="服务商" width="120" />
+        <el-table-column prop="model" label="模型" min-width="180" />
+        <el-table-column label="限流规则" width="130" align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.hasRule" type="info" size="small">
+              {{ formatRule(scope.row.rule) }}
+            </el-tag>
+            <span v-else class="text-slate-400 text-xs">未设置</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="Token 统计" width="140" align="center">
+          <template #default="scope">
+            <div v-if="scope.row.maxTokens > 0" class="flex flex-col items-center">
+              <el-progress 
+                :percentage="Math.min(100, Math.round((scope.row.usedTokens / scope.row.maxTokens) * 100))" 
+                :status="scope.row.usedTokens >= scope.row.maxTokens ? 'exception' : ''"
+                :stroke-width="12"
+                class="w-full mb-1"
+              />
+              <span class="text-[10px] text-slate-400">{{ scope.row.usedTokens }} / {{ scope.row.maxTokens }}</span>
+            </div>
+            <span v-else class="text-slate-400 text-xs">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="当前状态" width="180" align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.status.status === 'active'" type="success">可用</el-tag>
+            <el-tag v-else type="warning">限流至 {{ formatUnblock(scope.row.status.unblockAt) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="快速操作" width="140" align="center">
+          <template #default="scope">
+            <el-button-group v-if="scope.row.status.status === 'cooldown'">
+              <el-button size="small" type="success" @click="clearCooldown(scope.row.key)">
+                解封
+              </el-button>
+            </el-button-group>
+            <el-button-group v-else>
+              <el-button 
+                size="small" 
+                type="warning"
+                :disabled="!scope.row.hasRule"
+                @click="triggerCooldown(scope.row)"
+              >
+                触发限流
+              </el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+        <el-table-column label="排序" width="100" align="center">
+          <template #default="scope">
+            <el-button-group>
+              <el-button size="small" @click="moveUp(scope.row.index)">↑</el-button>
+              <el-button size="small" @click="moveDown(scope.row.index)">↓</el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" align="center">
+          <template #default="scope">
+            <el-button-group>
+              <el-button size="small" @click="openEdit(scope.row.index)">编辑</el-button>
+              <el-button size="small" type="danger" @click="removeBackend(scope.row.index)">删</el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-dialog  :z-index="3000" v-model="modalOpen" :title="editIndex >= 0 ? '编辑后端' : '添加后端'" width="600px" align-center append-to-body class="gateway-dialog backend-dialog" body-class="gateway-dialog-body backend-dialog-body">
       <el-form label-width="120px">
         <el-form-item label="服务商">
           <el-select v-model="form.provider" append-to="body" placeholder="选择服务商" :disabled="editIndex >= 0">

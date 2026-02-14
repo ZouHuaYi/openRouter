@@ -50,40 +50,46 @@ watch(tab, (name) => {
 
 <template>
   <el-config-provider :teleported="true">
-    <div class="min-h-screen bg-slate-950 text-slate-100">
-    <div class="fixed inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
-    <div class="fixed inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-transparent pointer-events-none" />
-    <div class="w-full p-4">
-      <el-card shadow="never" class="bg-slate-900 border border-slate-600 w-full">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-          <div class="text-lg font-semibold text-white">OpenAI 聚合网关</div>
-          <div class="ml-auto flex items-center gap-2">
-            <el-tag :type="status.running ? 'success' : 'info'">
-              {{ status.running ? '运行中' : '未运行' }}
-            </el-tag>
-            <span class="text-slate-300">:{{ status.port }}</span>
-            <el-button type="primary" plain :disabled="status.running" @click="handleStart">启动</el-button>
-            <el-button type="danger" plain :disabled="!status.running" @click="handleStop">停止</el-button>
+    <div class="min-h-screen bg-[#FAF5FF] text-slate-900">
+      <div class="fixed inset-0 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.08),transparent_55%)] pointer-events-none" />
+      <div class="relative w-full px-6 py-6">
+        <div class="mb-5 flex items-center gap-4 rounded-2xl border border-violet-100 bg-white/80 px-4 py-3">
+          <div class="h-11 w-11 rounded-xl bg-violet-600 text-white flex items-center justify-center font-bold">OR</div>
+          <div class="flex-1">
+            <div class="text-xl font-semibold">OpenRouter 网关控制台</div>
+            <div class="text-sm text-slate-500">本地网关运行状态与模型路由配置</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-sm">
+              <span class="inline-block h-2 w-2 rounded-full" :class="status.running ? 'bg-emerald-500' : 'bg-slate-400'"></span>
+              <span class="text-slate-600">{{ status.running ? '运行中' : '未运行' }}</span>
+              <span class="text-slate-400">端口</span>
+              <span class="font-semibold text-slate-800">:{{ status.port }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <el-button type="primary" :disabled="status.running" @click="handleStart">启动网关</el-button>
+              <el-button type="danger" plain :disabled="!status.running" @click="handleStop">停止</el-button>
+            </div>
           </div>
         </div>
 
-        <el-tabs v-model="tab" type="border-card" class="bg-slate-900 w-full" stretch @tab-click="handleTabClick">
-          <el-tab-pane label="状态" name="status">
-            <Status ref="statusRef" @status-change="refreshStatus" />
-          </el-tab-pane>
-          <el-tab-pane label="服务商" name="providers">
-            <Providers ref="providersRef" />
-          </el-tab-pane>
-          <el-tab-pane label="模型列表" name="backends">
-            <Backends ref="backendsRef" />
-          </el-tab-pane>
-          <el-tab-pane label="设置" name="settings">
-            <Settings ref="settingsRef" />
-          </el-tab-pane>
-        </el-tabs>
-      </el-card>
-    </div>
+        <el-card shadow="never" class="rounded-2xl border border-violet-100 bg-white/90">
+          <el-tabs v-model="tab" type="card" class="gateway-tabs" @tab-click="handleTabClick">
+            <el-tab-pane label="状态" name="status">
+              <Status ref="statusRef" @status-change="refreshStatus" />
+            </el-tab-pane>
+            <el-tab-pane label="服务商" name="providers">
+              <Providers ref="providersRef" />
+            </el-tab-pane>
+            <el-tab-pane label="模型列表" name="backends">
+              <Backends ref="backendsRef" />
+            </el-tab-pane>
+            <el-tab-pane label="设置" name="settings">
+              <Settings ref="settingsRef" />
+            </el-tab-pane>
+          </el-tabs>
+        </el-card>
+      </div>
     </div>
   </el-config-provider>
 </template>
@@ -95,8 +101,44 @@ watch(tab, (name) => {
   padding: 0;
 }
 
+:root {
+  --el-color-primary: #7c3aed;
+  --el-color-primary-light-3: #a78bfa;
+  --el-color-success: #10b981;
+  --el-color-warning: #f59e0b;
+  --el-color-danger: #ef4444;
+  --el-color-info: #64748b;
+  --el-border-radius-base: 10px;
+  --el-z-index-popper: 99999;
+}
+
 .el-card__body {
-  padding: 16px !important;
+  padding: 18px !important;
+}
+
+.gateway-tabs {
+  --el-tabs-header-height: 48px;
+}
+.gateway-tabs .el-tabs__header {
+  margin-bottom: 16px;
+}
+.gateway-tabs .el-tabs__nav-wrap::after {
+  background-color: #ede9fe;
+}
+.gateway-tabs .el-tabs__item {
+  font-weight: 600;
+  color: #475569;
+}
+.gateway-tabs .el-tabs__item.is-active {
+  color: #6d28d9;
+}
+
+.el-table th.el-table__cell {
+  background-color: #f5f3ff;
+  color: #4c1d95;
+}
+.el-table .el-table__cell {
+  border-color: #e9d5ff;
 }
 
 /* Ensure popper panels are not clipped inside dialogs */
@@ -115,11 +157,32 @@ watch(tab, (name) => {
 .dialog-popper {
   z-index: 99999 !important;
 }
-:root {
-  --el-z-index-popper: 99999;
-}
 
 .el-dialog {
   --el-dialog-margin-top: 10vh;
+}
+
+.gateway-dialog {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.gateway-dialog .el-dialog__header,
+.gateway-dialog .el-dialog__footer {
+  flex: 0 0 auto;
+}
+.gateway-dialog .el-dialog__body {
+  flex: 1 1 auto;
+  overflow: auto;
+  max-height: none;
+}
+.gateway-dialog-body {
+  overflow: auto;
+}
+
+.backend-dialog .el-dialog__body,
+.backend-dialog-body {
+  max-height: 60vh;
+  overflow: auto !important;
 }
 </style>

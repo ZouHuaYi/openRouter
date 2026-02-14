@@ -95,27 +95,37 @@ defineExpose({ reload: load })
 </script>
 
 <template>
-  <div>
-    <div class="mb-3 flex items-center gap-2">
-      <el-button type="primary" @click="openAdd">添加服务商</el-button>
-      <el-button @click="handleExport">导出配置</el-button>
-      <el-button @click="handleImport">导入配置</el-button>
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-base font-semibold text-slate-800">服务商管理</div>
+        <div class="text-sm text-slate-500">配置上游服务商地址与鉴权信息</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <el-button type="primary" @click="openAdd">添加服务商</el-button>
+        <el-button @click="handleExport">导出配置</el-button>
+        <el-button @click="handleImport">导入配置</el-button>
+      </div>
     </div>
-    <el-table :data="rows" border stripe size="small">
-      <el-table-column prop="id" label="ID" width="160" />
-      <el-table-column prop="baseUrl" label="baseUrl" min-width="240" />
-      <el-table-column prop="chatPath" label="chatPath" width="200" />
-      <el-table-column label="操作" width="120" align="center">
-        <template #default="scope">
-          <el-button-group>
-            <el-button size="small" @click="openEdit(scope.row.id)">编辑</el-button>
-            <el-button size="small" type="danger" @click="removeProvider(scope.row.id)">删除</el-button>
-          </el-button-group>
-        </template>
-      </el-table-column>
-    </el-table>
 
-    <el-dialog append-to-body v-model="modalOpen" :title="modalIsNew ? '添加服务商' : '编辑服务商'" width="520px" align-center>
+    <el-card shadow="never" class="rounded-xl border border-slate-200 bg-white">
+      <el-empty v-if="rows.length === 0" description="暂无服务商，先添加一个吧" />
+      <el-table v-else :data="rows" border stripe size="small">
+        <el-table-column prop="id" label="ID" width="160" />
+        <el-table-column prop="baseUrl" label="baseUrl" min-width="240" />
+        <el-table-column prop="chatPath" label="chatPath" width="200" />
+        <el-table-column label="操作" width="120" align="center">
+          <template #default="scope">
+            <el-button-group>
+              <el-button size="small" @click="openEdit(scope.row.id)">编辑</el-button>
+              <el-button size="small" type="danger" @click="removeProvider(scope.row.id)">删除</el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-dialog append-to-body v-model="modalOpen" :title="modalIsNew ? '添加服务商' : '编辑服务商'" width="520px" align-center class="gateway-dialog" body-class="gateway-dialog-body">
       <el-form label-width="110px">
         <el-form-item label="ID（英文）">
           <el-input v-model="form.id" :readonly="!modalIsNew" placeholder="如 doubao" />

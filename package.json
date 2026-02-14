@@ -1,7 +1,8 @@
 {
   "name": "openrouter-gateway",
-  "version": "2.0.2",
+  "version": "2.0.4",
   "description": "OpenAI-compatible aggregation gateway for multiple LLM providers",
+  "author": "OpenRouter Gateway",
   "main": "electron/main.js",
   "scripts": {
     "start": "node src/index.js",
@@ -51,7 +52,9 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "executableName": "OpenRouterGateway",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,

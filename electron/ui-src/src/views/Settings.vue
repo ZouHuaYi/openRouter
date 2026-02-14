@@ -74,45 +74,55 @@ defineExpose({ reload: load })
 </script>
 
 <template>
-  <div>
-    <el-form label-width="160px" label-position="top" class="form-container-top">
-      <el-form-item label="对外模型 ID (defaultModel)">
-        <el-input v-model="config.defaultModel" placeholder="chat" />
-      </el-form-item>
-      <el-form-item label="端口 (PORT)">
-        <el-input v-model="env.PORT" type="number" />
-      </el-form-item>
-      <el-form-item label="网关 Key (GATEWAY_API_KEY)">
-        <el-input v-model="env.GATEWAY_API_KEY" type="password" />
-      </el-form-item>
-    </el-form>
-
-    <div class="mb-2">
-      <el-button type="success" @click="openAddEnv">+ 添加环境变量</el-button>
-    </div>
-    <el-table :data="envExtra" border stripe size="small">
-      <el-table-column label="KEY" width="220">
-        <template #default="scope">
-          <el-input v-model="scope.row.key" />
-        </template>
-      </el-table-column>
-      <el-table-column label="VALUE" min-width="240">
-        <template #default="scope">
-          <el-input v-model="scope.row.value" type="password" />
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="120" align="center">
-        <template #default="scope">
-          <el-button size="small" type="danger" @click="removeEnv(scope.$index)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <div class="mt-3">
+  <div class="space-y-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-base font-semibold text-slate-800">系统设置</div>
+        <div class="text-sm text-slate-500">配置默认模型与网关环境变量</div>
+      </div>
       <el-button type="primary" @click="saveAll">保存设置</el-button>
     </div>
 
-    <el-dialog append-to-body v-model="modalOpen" title="添加环境变量" width="520px" align-center>
+    <el-card shadow="never" class="rounded-xl border border-slate-200 bg-white">
+      <el-form label-width="160px" label-position="top">
+        <el-form-item label="对外模型 ID (defaultModel)">
+          <el-input v-model="config.defaultModel" placeholder="chat" />
+        </el-form-item>
+        <el-form-item label="端口 (PORT)">
+          <el-input v-model="env.PORT" type="number" />
+        </el-form-item>
+        <el-form-item label="网关 Key (GATEWAY_API_KEY)">
+          <el-input v-model="env.GATEWAY_API_KEY" type="password" />
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never" class="rounded-xl border border-slate-200 bg-white">
+      <div class="mb-3 flex items-center justify-between">
+        <div class="text-sm font-semibold text-slate-700">自定义环境变量</div>
+        <el-button type="success" @click="openAddEnv">+ 添加环境变量</el-button>
+      </div>
+      <el-empty v-if="envExtra.length === 0" description="暂无自定义变量" />
+      <el-table v-else :data="envExtra" border stripe size="small">
+        <el-table-column label="KEY" width="220">
+          <template #default="scope">
+            <el-input v-model="scope.row.key" />
+          </template>
+        </el-table-column>
+        <el-table-column label="VALUE" min-width="240">
+          <template #default="scope">
+            <el-input v-model="scope.row.value" type="password" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" align="center">
+          <template #default="scope">
+            <el-button size="small" type="danger" @click="removeEnv(scope.$index)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-dialog append-to-body v-model="modalOpen" title="添加环境变量" width="520px" align-center class="gateway-dialog" body-class="gateway-dialog-body">
       <el-form label-width="100px">
         <el-form-item label="变量名">
           <el-input v-model="newEnvKey" placeholder="如 DOUBAO_API_KEY" />
@@ -128,12 +138,3 @@ defineExpose({ reload: load })
     </el-dialog>
   </div>
 </template>
-
-<style scoped>
-.form-container-top {
-  :deep(.el-form-item__label) {
-    font-weight: 500 !important;
-    color: #ffffff !important;
-  }
-}
-</style>

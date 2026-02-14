@@ -39,12 +39,19 @@ defineExpose({ start, stop })
 </script>
 
 <template>
-  <el-card shadow="never">
-    <el-scrollbar height="320px">
-      <pre
-        ref="logEl"
-        class="text-sm whitespace-pre-wrap break-all"
-      >{{ log || '等待日志...' }}</pre>
-    </el-scrollbar>
-  </el-card>
+  <div class="space-y-4">
+    <div>
+      <div class="text-base font-semibold text-slate-800">运行日志</div>
+      <div class="text-sm text-slate-500">实时查看网关运行输出与错误提示</div>
+    </div>
+
+    <el-card shadow="never" class="rounded-xl border border-slate-200 bg-white">
+      <el-scrollbar height="360px">
+        <pre
+          ref="logEl"
+          class="text-sm whitespace-pre-wrap break-all bg-slate-950 text-slate-100 rounded-lg p-4 min-h-[240px]"
+        >{{ log || '等待日志...' }}</pre>
+      </el-scrollbar>
+    </el-card>
+  </div>
 </template>
